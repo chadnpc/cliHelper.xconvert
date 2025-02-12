@@ -1,6 +1,6 @@
 ﻿@{
   ModuleName    = 'cliHelper.xconvert'
-  ModuleVersion = [version]'0.1.6'
+  ModuleVersion = [version]'0.1.7'
   ReleaseNotes  = @"
 # Changelog`n`n
 
@@ -10,7 +10,7 @@
 - Fixed base85
 
 `n`n***`n`n## Manual install guide`n`n
-1. [Click here](https://github.com/alainQtec/cliHelper.xconvert/releases/download/v<versionToDeploy>/cliHelper.xconvert.zip) to download the *PsImport.zip* file attached to the release.
+1. [Click here](https://github.com/chadnpc/cliHelper.xconvert/releases/download/v<versionToDeploy>/cliHelper.xconvert.zip) to download the *PsImport.zip* file attached to the release.
 2. **If on Windows**: Right-click the downloaded zip, select Properties, then unblock the file.
     > _This is to prevent having to unblock each file individually after unzipping._
 3. Unzip the archive.

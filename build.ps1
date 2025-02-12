@@ -14,7 +14,7 @@ using namespace System.Management.Automation
 #   ./build.ps1 -Task deploy
 #   Will build the module, test it and deploy it to PsGallery
 #.LINK
-#   https://github.com/alainQtec/cliHelper.xconvert/blob/main/build.ps1
+#   https://github.com/chadnpc/cliHelper.xconvert/blob/main/build.ps1
 #.NOTES
 #   Author   : Alain Herve
 #   Copyright: Copyright © 2024 Alain Herve. All rights reserved.
@@ -64,7 +64,7 @@ begin {
   if ($PSCmdlet.ParameterSetName -eq 'help') { Get-Help $MyInvocation.MyCommand.Source -Full | Out-String | Write-Host -f Green; return }
   $IsGithubRun = ![string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable('GITHUB_WORKFLOW'))
   if ($($IsGithubRun ? $true : $(try { (Test-Connection "https://www.github.com" -Count 2 -TimeoutSeconds 1 -ea Ignore -Verbose:$false | Select-Object -expand Status) -contains "Success" } catch { Write-Warning "Test Connection Failed. $($_.Exception.Message)"; $false }))) {
-    $req = Invoke-WebRequest -Method Get -Uri https://raw.githubusercontent.com/alainQtec/PsCraft/refs/heads/main/Public/Build-Module.ps1 -SkipHttpErrorCheck -Verbose:$false
+    $req = Invoke-WebRequest -Method Get -Uri https://raw.githubusercontent.com/chadnpc/PsCraft/refs/heads/main/Public/Build-Module.ps1 -SkipHttpErrorCheck -Verbose:$false
     if ($req.StatusCode -ne 200) { throw "Failed to download Build-Module.ps1" }
     $t = New-Item $([IO.Path]::GetTempFileName().Replace('.tmp', '.ps1')) -Verbose:$false; Set-Content -Path $t.FullName -Value $req.Content; . $t.FullName; Remove-Item $t.FullName -Verbose:$false
   } else {
