@@ -1,5 +1,6 @@
 using namespace System.IO
 using namespace System.Text
+using namespace System.Data
 using namespace System.Reflection
 using namespace System.Collections
 using namespace System.Management.Automation
@@ -1409,6 +1410,39 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static [string] FromROT13([string]$Text) {
     return [ROT13]::Decode($Text)
+  }
+  static [PSCustomObject] ToPSObject([System.Data.IDataRecord]$record) {
+    return [xconvert]::ToPSObject($record, $true)
+  }
+
+  static [PSCustomObject] ToPSObject([System.Data.IDataRecord]$record, [bool]$trimSpaces) {
+    # Cache the names of the fields
+    $columnNames = @()
+    for ($i = 0; $i -lt $record.FieldCount; $i++) {
+      $columnNames += $record.GetName($i)
+    }
+
+    $obj = [PSCustomObject]@{}
+
+    for ($i = 0; $i -lt $record.FieldCount; $i++) {
+      $value = $null
+
+      if (-not $record.IsDBNull($i)) {
+        $value = $record.GetValue($i)
+
+        # Trim leading and trailing spaces from the column?
+        if ($trimSpaces) {
+          $valueAsString = $value -as [string]
+          if ($valueAsString -ne $null) {
+            $value = $valueAsString.Trim()
+          }
+        }
+      }
+
+      $obj | Add-Member -NotePropertyName $columnNames[$i] -NotePropertyValue $value
+    }
+
+    return $obj
   }
   static [PSCustomObject[]] ToPSObject([xml]$XML) {
     $Out = @(); foreach ($Object in @($XML.Objects.Object)) {
