@@ -2285,7 +2285,7 @@ foreach ($Type in $typestoExport) {
       'TypeAcceleratorAlreadyExists',
       [System.Management.Automation.ErrorCategory]::InvalidOperation,
       $Type.FullName
-    ) | Write-Warning
+    ) | Write-Debug
   }
 }
 # Add type accelerators for every exportable type.
