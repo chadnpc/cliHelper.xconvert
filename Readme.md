@@ -2,7 +2,7 @@
 
 <p><b><a href="https://powershellgallery.com/packages/cliHelper.xconvert">✖convert</a></b> - version <b>0.1.7</b></p>
 
-An all-in-one module to convert files and object types.
+AIO module for bidirectional data transformations across multiple encoding formats and native object structures, eliminating dependency on multiple conversion utilities. 
 
 <p>
 Its like the builtin <a href="https://learn.microsoft.com/en-us/dotnet/fundamentals/runtime-libraries/system-convert">[system.convert]</a> but extended.
