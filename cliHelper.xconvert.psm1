@@ -9,6 +9,7 @@ using namespace System.Runtime.InteropServices
 using namespace Microsoft.PowerShell.MarkdownRender
 
 #region    Classes
+#Requires -Modules PsModuleBase
 
 enum EncodingName {
   Base85
