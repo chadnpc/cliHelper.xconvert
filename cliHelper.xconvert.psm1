@@ -1518,6 +1518,9 @@ class xconvert : System.ComponentModel.TypeConverter {
     [MarkdownInfo]$info = [MarkdownConverter]::new()::convert($content, 'HTML', [PSMarkdownOptionInfo]::new())
     return $info.Html
   }
+  static [string] MarkdowntoHTML ([IO.FileInfo]$file) {
+    return [String]::Join("`n", [IO.File]::ReadAllLines($file.FullName).ForEach({ ![String]::IsNullOrWhiteSpace($_) ? [xconvert]::MarkdowntoHTML($_) : $null }))
+  }
   Static [PSCustomObject] ToPSObject([System.Object]$Obj) {
     $PSObj = [PSCustomObject]::new();
     $Obj | Get-Member -MemberType Properties | ForEach-Object {
