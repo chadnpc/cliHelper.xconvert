@@ -6,6 +6,7 @@ using namespace System.Collections
 using namespace System.Management.Automation
 using namespace System.Runtime.Serialization
 using namespace System.Runtime.InteropServices
+using namespace Microsoft.PowerShell.MarkdownRender
 
 #region    Classes
 
@@ -1393,7 +1394,7 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static [string] ToObfuscated([string]$string) {
     $Inpbytes = [Encoding]::UTF8.GetBytes($string); $rn = [System.Random]::new(); # Hides Byte Array in a random String
-    return [string]::Join('', $($Inpbytes | ForEach-Object { [string][char]$rn.Next(97, 122) + $_ }));
+    return [System.string]::Join('', $($Inpbytes | ForEach-Object { [string][char]$rn.Next(97, 122) + $_ }));
   }
   static [string] ToObfuscated([byte[]]$bytes) {
     $rn = [System.Random]::new(); # Hides Byte Array in a random String
@@ -1433,7 +1434,7 @@ class xconvert : System.ComponentModel.TypeConverter {
         # Trim leading and trailing spaces from the column?
         if ($trimSpaces) {
           $valueAsString = $value -as [string]
-          if ($valueAsString -ne $null) {
+          if ($null -ne $valueAsString) {
             $value = $valueAsString.Trim()
           }
         }
@@ -1511,6 +1512,10 @@ class xconvert : System.ComponentModel.TypeConverter {
       $obj
     }
     return $objs
+  }
+  static [string] MarkdowntoHTML ([string]$content) {
+    [MarkdownInfo]$info = [MarkdownConverter]::new()::convert($content, 'HTML', [PSMarkdownOptionInfo]::new())
+    return $info.Html
   }
   Static [PSCustomObject] ToPSObject([System.Object]$Obj) {
     $PSObj = [PSCustomObject]::new();
