@@ -2,7 +2,7 @@
 using namespace System.IO
 using namespace System.Management.Automation
 #.SYNOPSIS
-#   cliHelper.xconvert buildScript
+#   cliHelper.xconvert buildScript v0.1.8
 #.DESCRIPTION
 #   A custom Psake buildScript for the module cliHelper.xconvert.
 #.EXAMPLE

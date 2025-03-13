@@ -1,6 +1,6 @@
 ﻿@{
   ModuleName    = 'cliHelper.xconvert'
-  ModuleVersion = [version]'0.1.7'
+  ModuleVersion = [version]'0.1.8'
   ReleaseNotes  = @"
 # Changelog`n`n
 

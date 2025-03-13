@@ -2,8 +2,8 @@
 .SYNOPSIS
     Run Tests
 .EXAMPLE
-    .\Test-Module.ps1 -version 0.1.0
-    Will test the module in .\BuildOutput\<ModuleName>\0.1.0\
+    .\Test-Module.ps1 -version 0.1.8
+    Will test the module in .\BuildOutput\<ModuleName>\0.1.8\
 .EXAMPLE
     .\Test-Module.ps1
     Will test the latest  module version in .\BuildOutput\<ModuleName>\
