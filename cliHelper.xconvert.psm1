@@ -747,246 +747,6 @@ class EncodKit {
   }
 }
 
-class xObOptions {
-  [bool]$SkipDefaults = $true
-  [string[]]$PropstoExclude
-  [string[]]$PropstoInclude
-  hidden [string[]]$Values
-  [int]$MaxDepth = 10
-}
-
-class xget {
-  static [xObOptions] $Options = [xObOptions]::new()
-  # Use a cryptographic hash function (SHA-256) to generate a unique machine ID
-  static [string] UniqueMachineId() {
-    $Id = [string]($Env:MachineId)
-    $vp = (Get-Variable VerbosePreference).Value
-    try {
-      Set-Variable VerbosePreference -Value $([System.Management.Automation.ActionPreference]::SilentlyContinue)
-      $sha256 = [System.Security.Cryptography.SHA256]::Create()
-      $HostOS = $(if ($(Get-Variable PSVersionTable -Value).PSVersion.Major -le 5 -or $(Get-Variable IsWindows -Value)) { "Windows" }elseif ($(Get-Variable IsLinux -Value)) { "Linux" }elseif ($(Get-Variable IsMacOS -Value)) { "macOS" }else { "UNKNOWN" });
-      if ($HostOS -eq "Windows") {
-        if ([string]::IsNullOrWhiteSpace($Id)) {
-          $machineId = Get-CimInstance -ClassName Win32_ComputerSystemProduct | Select-Object -ExpandProperty UUID
-          Set-Item -Path Env:\MachineId -Value $([convert]::ToBase64String($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($machineId))));
-        }
-        $Id = [string]($Env:MachineId)
-      } elseif ($HostOS -eq "Linux") {
-        # $Id = (sudo cat /sys/class/dmi/id/product_uuid).Trim() # sudo prompt is a nono
-        # Lets use mac addresses
-        $Id = ([string[]]$(ip link show | grep "link/ether" | awk '{print $2}') -join '-').Trim()
-        $Id = [convert]::ToBase64String($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Id)))
-      } elseif ($HostOS -eq "macOS") {
-        $Id = (system_profiler SPHardwareDataType | Select-String "UUID").Line.Split(":")[1].Trim()
-        $Id = [convert]::ToBase64String($sha256.ComputeHash([System.Text.Encoding]::UTF8.GetBytes($Id)))
-      } else {
-        throw "Error: HostOS = '$HostOS'. Could not determine the operating system."
-      }
-    } catch {
-      throw $_
-    } finally {
-      $sha256.Clear(); $sha256.Dispose()
-      Set-Variable VerbosePreference -Value $vp
-    }
-    return $Id
-  }
-  static [string[]] ListProperties([System.Object]$Obj) {
-    return [xget]::ListProperties($Obj, '')
-  }
-  static [string[]] ListProperties([System.Object]$Obj, [string]$Prefix = '') {
-    $Properties = @()
-    $Obj.PSObject.Properties | ForEach-Object {
-      $PropertyName = $_.Name
-      $FullPropertyName = if ([string]::IsNullOrEmpty($Prefix)) {
-        $PropertyName
-      } else {
-        "$Prefix,$PropertyName"
-      }
-      $PropertyValue = $_.Value
-      $propertyType = $_.TypeNameOfValue
-      # $BaseType = $($propertyType -as 'type').BaseType.FullName
-      if ($propertyType -is [System.ValueType]) {
-        Write-Verbose "vt <= $propertyType"
-        $Properties += $FullPropertyName
-      } elseif ($propertyType -is [System.Object]) {
-        Write-Verbose "ob <= $propertyType"
-        $Properties += [xget]::ListProperties($PropertyValue, $FullPropertyName)
-      }
-    }
-    return $Properties
-  }
-  static [Object[]] ExcludeProperties($Object) {
-    return [xget]::ExcludeProperties($Object, [xget]::Options.PropstoExclude)
-  }
-  static [Object[]] ExcludeProperties($Object, [string[]]$PropstoExclude) {
-    $DefaultTypeProps = @()
-    if ([xget]::Options.SkipDefaults) {
-      try {
-        $DefaultTypeProps = @( $Object.GetType().GetProperties() | Select-Object -ExpandProperty Name -ErrorAction Stop )
-      } Catch {
-        $null
-      }
-    }
-    $allPropstoExclude = @( $PropstoExclude + $DefaultTypeProps ) | Select-Object -Unique
-    return $Object.psobject.properties | Where-Object { $allPropstoExclude -notcontains $_.Name }
-  }
-  static [PSObject] RecurseObject($Object, [PSObject]$Output) {
-    return [xget]::RecurseObject($Object, '$Object', $Output, 0)
-  }
-  static [PSObject] RecurseObject($Object, [string[]]$Path, [PSObject]$Output, [int]$Depth) {
-    $Depth++
-    #Get the children we care about, and their names
-    $Children = [xget]::ExcludeProperties($Object);
-    #Loop through the children properties.
-    foreach ($Child in $Children) {
-      $ChildName = $Child.Name
-      $ChildValue = $Child.Value
-      # Handle special characters...
-      $FriendlyChildName = $(if ($ChildName -match '[^a-zA-Z0-9_]') {
-          "'$ChildName'"
-        } else {
-          $ChildName
-        }
-      )
-      $IsInInclude = ![xget]::Options.PropstoInclude -or @([xget]::Options.PropstoInclude).Where({ $ChildName -like $_ })
-      $IsInValue = ![xget]::Options.Value -or (@([xget]::Options.Value).Where({ $ChildValue -like $_ }).Count -gt 0)
-      if ($IsInInclude -and $IsInValue -and $Depth -le [xget]::Options.MaxDepth) {
-        $ThisPath = @( $Path + $FriendlyChildName ) -join "."
-        $Output | Add-Member -MemberType NoteProperty -Name $ThisPath -Value $ChildValue
-      }
-      if ($null -eq $ChildValue) {
-        continue
-      }
-      if (($ChildValue.GetType() -eq $Object.GetType() -and $ChildValue -is [datetime]) -or ($ChildName -eq "SyncRoot" -and !$ChildValue)) {
-        Write-Debug "Skipping $ChildName with type $($ChildValue.GetType().FullName)"
-        continue
-      }
-      # Check for arrays by checking object type (this is a fix for arrays with 1 object) otherwise check the count of objects
-      $IsArray = $(if (($ChildValue.GetType()).basetype.Name -eq "Array") {
-          $true
-        } else {
-          @($ChildValue).count -gt 1
-        }
-      )
-      $count = 0
-      #Set up the path to this node and the data...
-      $CurrentPath = @( $Path + $FriendlyChildName ) -join "."
-
-      #Get the children's children we care about, and their names.  Also look for signs of a hashtable like type
-      $ChildrensChildren = [xget]::ExcludeProperties($ChildValue)
-      $HashKeys = if ($ChildValue.Keys -and $ChildValue.Values) {
-        $ChildValue.Keys
-      } else {
-        $null
-      }
-      if ($(@($ChildrensChildren).count -ne 0 -or $HashKeys) -and $Depth -lt [xget]::Options.MaxDepth) {
-        #This handles hashtables.  But it won't recurse...
-        if ($HashKeys) {
-          foreach ($key in $HashKeys) {
-            $Output | Add-Member -MemberType NoteProperty -Name "$CurrentPath['$key']" -Value $ChildValue["$key"]
-            $Output = [xget]::RecurseObject($ChildValue["$key"], "$CurrentPath['$key']", $Output, $depth)
-          }
-        } else {
-          if ($IsArray) {
-            foreach ($item in @($ChildValue)) {
-              $Output = [xget]::RecurseObject($item, "$CurrentPath[$count]", $Output, $depth)
-              $Count++
-            }
-          } else {
-            $Output = [xget]::RecurseObject($ChildValue, $CurrentPath, $Output, $depth)
-          }
-        }
-      }
-    }
-    return $Output
-  }
-  static [hashtable[]] FindHashKeyValue($PropertyName, $Ast) {
-    return [xget]::FindHashKeyValue($PropertyName, $Ast, @())
-  }
-  static [hashtable[]] FindHashKeyValue($PropertyName, $Ast, [string[]]$CurrentPath) {
-    if ($PropertyName -eq ($CurrentPath -Join '.') -or $PropertyName -eq $CurrentPath[-1]) {
-      return $Ast | Add-Member NoteProperty HashKeyPath ($CurrentPath -join '.') -PassThru -Force | Add-Member NoteProperty HashKeyName ($CurrentPath[-1]) -PassThru -Force
-    }; $r = @()
-    if ($Ast.PipelineElements.Expression -is [System.Management.Automation.Language.HashtableAst]) {
-      $KeyValue = $Ast.PipelineElements.Expression
-      ForEach ($KV in $KeyValue.KeyValuePairs) {
-        $result = [xget]::FindHashKeyValue($PropertyName, $KV.Item2, @($CurrentPath + $KV.Item1.Value))
-        if ($null -ne $result) {
-          $r += $result
-        }
-      }
-    }
-    return $r
-  }
-  static [string] EscapeSpecialCharacters([string]$str) {
-    if ([string]::IsNullOrWhiteSpace($str)) {
-      return $str
-    } else {
-      [string]$ParsedText = $str
-      if ($ParsedText.ToCharArray() -icontains "'") {
-        $ParsedText = $ParsedText -replace "'", "''"
-      }
-      return $ParsedText
-    }
-  }
-  static [Hashtable] RegexMatch([regex]$Regex, [RegularExpressions.Match]$Match) {
-    if (!$Match.Groups[0].Success) {
-      throw New-Object System.ArgumentException('Match does not contain any captures.', 'Match')
-    }
-    $h = @{}
-    foreach ($name in $Regex.GetGroupNames()) {
-      if ($name -eq 0) {
-        continue
-      }
-      $h.$name = $Match.Groups[$name].Value
-    }
-    return $h
-  }
-  static [string] RegexEscape([string]$LiteralText) {
-    if ([string]::IsNullOrEmpty($LiteralText)) { $LiteralText = [string]::Empty }
-    return [regex]::Escape($LiteralText);
-  }
-  static [bool] IsValidHex([string]$Text) {
-    return [regex]::IsMatch($Text, '^#?([a-f0-9]{6}|[a-f0-9]{3})$')
-  }
-  static [bool] IsValidHex([byte[]]$bytes) {
-    # .Example
-    # $bytes = [byte[]](0x00, 0x1F, 0x2A, 0xFF)
-    # $isValid = [MyConverter]::IsValidHex($bytes)
-    # Write-Host "Is valid hex: $isValid"
-    foreach ($byte in $bytes) {
-      if ($byte -lt 0x00 -or $byte -gt 0xFF) {
-        return $false
-      }
-    } return $true
-  }
-  static [bool] IsValidBase64([string]$string) {
-    return $(
-      [regex]::IsMatch([string]$string, '^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$') -and
-      ![string]::IsNullOrWhiteSpace([string]$string) -and !$string.Length % 4 -eq 0 -and !$string.Contains(" ") -and
-      !$string.Contains(" ") -and !$string.Contains("`t") -and !$string.Contains("`n")
-    )
-  }
-  static [void] ValidatePolybius([string]$Text, [string]$Key, [string]$Action) {
-    if ($Text -notmatch "^[a-z ]*$" -and ($Action -ne 'Decrypt')) {
-      throw('Text must only have alphabetical characters');
-    }
-    if ($Key.Length -ne 25) {
-      throw('Key must be 25 characters in length');
-    }
-    if ($Key -notmatch "^[a-z]*$") {
-      throw('Key must only have alphabetical characters');
-    }
-    for ($i = 0; $i -lt 25; $i++) {
-      for ($j = 0; $j -lt 25; $j++) {
-        if (($Key[$i] -eq $Key[$j]) -and ($i -ne $j)) {
-          throw('Key must have no repeating letters');
-        }
-      }
-    }
-  }
-}
-
 # Binary-Coded Decimal (BCD) Encoding:
 # This algorithm represents decimal digits with four bits, with each decimal digit encoded in its own four-bit code.
 class BCD {
@@ -1097,12 +857,12 @@ class xconvert : System.ComponentModel.TypeConverter {
               }
               ### Strings and Enums
               $($keytN -in @('String', 'ActionPreference')) {
-                [string]$itemText = "{0} = '{1}'" -f "$key", [xget]::EscapeSpecialCharacters($Object[$key])
+                [string]$itemText = "{0} = '{1}'" -f "$key", [PsmoduleBase]::EscapeSpecialCharacters($Object[$key])
                 [void]$sb.AppendLine($itemText)
                 break
               }
               $($keytN -eq 'String[]') {
-                [string]$itemText = "{0} = @({1})" -f "$key", "$($($Object[$key] | ForEach-Object { "'$([xget]::EscapeSpecialCharacters($_))'" }) -join ", ")"
+                [string]$itemText = "{0} = @({1})" -f "$key", "$($($Object[$key] | ForEach-Object { "'$([PsmoduleBase]::EscapeSpecialCharacters($_))'" }) -join ", ")"
                 [void]$sb.AppendLine($itemText)
                 break
               }
@@ -1209,9 +969,9 @@ class xconvert : System.ComponentModel.TypeConverter {
 
   static [Guid] ToGuid([string]$text) {
     [ValidateNotNullOrWhiteSpace()][string]$text = [string]$text
-    if ([xget]::IsValidHex($text) -and $text.Trim().Length -eq 16) {
+    if ([PsmoduleBase]::IsValidHex($text) -and $text.Trim().Length -eq 16) {
       # def not a coincidence, so lets try this first:
-      #ex: [xconvert]::ToGuid([xget]::RandomName(16))
+      #ex: [xconvert]::ToGuid([PsmoduleBase]::RandomName(16))
       $res = $(try { [System.Guid]::new(([byte[]] -split ($text -replace '..', '0x$& '))) } catch { $null })
       if ($null -ne $res) { return $res }
     }
@@ -1350,7 +1110,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     $Text = $Text.ToLower();
     $Key = $Key.ToLower();
     [String]$Cipher = [string]::Empty
-    [xget]::ValidatePolybius($Text, $Key, "Encrypt")
+    [PsmoduleBase]::ValidatePolybius($Text, $Key, "Encrypt")
     [Array]$polybiusTable = New-Object 'string[,]' 5, 5;
     $letter = 0;
     for ($i = 0; $i -lt 5; $i++) {
@@ -1378,7 +1138,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     $Cipher = $Cipher.ToLower();
     $Key = $Key.ToLower();
     [String]$Output = [string]::Empty
-    [xget]::ValidatePolybius($Cipher, $Key, "Decrypt")
+    [PsmoduleBase]::ValidatePolybius($Cipher, $Key, "Decrypt")
     [Array]$polybiusTable = New-Object 'string[,]' 5, 5;
     $letter = 0;
     for ($i = 0; $i -lt 5; $i++) {
@@ -1555,7 +1315,7 @@ class xconvert : System.ComponentModel.TypeConverter {
       $PropertyName = $_.Name
       $PropertyValue = $_.Value
       if ($_.TypeNameOfValue -is 'Deserialized.System.Management.Automation.PSCustomObject') {
-        $OutputObject | Add-Member -Name $PropertyName -MemberType NoteProperty -Value ([xget]::ConvertToPSCustomObject($PropertyValue))
+        $OutputObject | Add-Member -Name $PropertyName -MemberType NoteProperty -Value ([PsmoduleBase]::ConvertToPSCustomObject($PropertyValue))
       } else {
         $OutputObject | Add-Member -Name $PropertyName -MemberType NoteProperty -Value $PropertyValue
       }
@@ -1581,7 +1341,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     return [Base85]::Decode([xconvert]::ToUTF8str($bytes))
   }
   static [string] ToBase32([byte[]]$bytes) {
-    if ([xget]::IsValidHex($bytes)) {
+    if ([PsmoduleBase]::IsValidHex($bytes)) {
       return [System.BitConverter]::ToString($bytes).Replace("-", "").ToLower()
     }
     return [Base32]::Encode($bytes)
@@ -1612,11 +1372,11 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static [string] ToProtected([string]$string) {
     $Scope = [ProtectionScope]::CurrentUser
-    $Entropy = [Encoding]::UTF8.GetBytes([xget]::UniqueMachineId())[0..15];
+    $Entropy = [Encoding]::UTF8.GetBytes([PsmoduleBase]::GetRuntimeUUID())[0..15];
     return [xconvert]::Tostring([xconvert]::ToProtected([xconvert]::ToBytes($string), $Entropy, $Scope))
   }
   static hidden [string] ToProtected([string]$string, [ProtectionScope]$Scope) {
-    $Entropy = [Encoding]::UTF8.GetBytes([xget]::UniqueMachineId())[0..15];
+    $Entropy = [Encoding]::UTF8.GetBytes([PsmoduleBase]::GetRuntimeUUID())[0..15];
     return [xconvert]::Tostring([xconvert]::ToProtected([xconvert]::ToBytes($string), $Entropy, $Scope))
   }
   static hidden [string] ToProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
@@ -1624,11 +1384,11 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static [byte[]] ToProtected([byte[]]$Bytes) {
     $Scope = [ProtectionScope]::CurrentUser
-    $Entropy = [Encoding]::UTF8.GetBytes([xget]::UniqueMachineId())[0..15];
+    $Entropy = [Encoding]::UTF8.GetBytes([PsmoduleBase]::GetRuntimeUUID())[0..15];
     return [xconvert]::ToProtected($bytes, $Entropy, $Scope)
   }
   static hidden [byte[]] ToProtected([byte[]]$Bytes, [ProtectionScope]$Scope) {
-    $Entropy = [Encoding]::UTF8.GetBytes([xget]::UniqueMachineId())[0..15];
+    $Entropy = [Encoding]::UTF8.GetBytes([PsmoduleBase]::GetRuntimeUUID())[0..15];
     return [xconvert]::ToProtected($bytes, $Entropy, $Scope)
   }
   static hidden [byte[]] ToProtected([byte[]]$Bytes, [byte[]]$Entropy, [ProtectionScope]$Scope) {
@@ -1647,11 +1407,11 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static [string] FromProtected([string]$string) {
     $Scope = [ProtectionScope]::CurrentUser
-    $Entropy = [Encoding]::UTF8.GetBytes([xget]::UniqueMachineId())[0..15];
+    $Entropy = [Encoding]::UTF8.GetBytes([PsmoduleBase]::GetRuntimeUUID())[0..15];
     return [xconvert]::FromBytes([xconvert]::FromProtected([xconvert]::ToBytes($string), $Entropy, $Scope))
   }
   static hidden [string] FromProtected([string]$string, [ProtectionScope]$Scope) {
-    $Entropy = [Encoding]::UTF8.GetBytes([xget]::UniqueMachineId())[0..15];
+    $Entropy = [Encoding]::UTF8.GetBytes([PsmoduleBase]::GetRuntimeUUID())[0..15];
     return [xconvert]::FromBytes([xconvert]::FromProtected([xconvert]::ToBytes($string), $Entropy, $Scope))
   }
   static hidden [string] FromProtected([string]$string, [byte[]]$Entropy, [ProtectionScope]$Scope) {
@@ -1715,7 +1475,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     return $OutPut;
   }
   static [PSObject[]] ToFlatObject([PSObject[]]$obj) {
-    $op = [xget]::Options
+    $op = [PsmoduleBase]::Options
     return [xconvert]::ToFlatObject($obj, $op.PropstoExclude, $op.SkipDefaults, $op.PropstoInclude, $op.Values, $op.MaxDepth)
   }
   static hidden [PSObject[]] ToFlatObject([PSObject[]]$obj, [string[]]$PropstoExclude, [bool]$SkipDefaults, [string[]]$PropstoInclude, [string[]]$Values, [int]$MaxDepth) {
@@ -1723,9 +1483,9 @@ class xconvert : System.ComponentModel.TypeConverter {
     #   flatten an object to simplify discovery of data
     # .EXAMPLE
     #   $qs = Invoke-RestMethod "https://api.stackexchange.com/2.0/questions/unanswered?order=desc&sort=activity&tagged=powershell&pagesize=10&site=stackoverflow"
-    #   [xget]::Options.Include = ("Title", "Link", "View_Count")
+    #   [PsmoduleBase]::Options.Include = ("Title", "Link", "View_Count")
     #   $ql = [xconvert]::ToFlatObject($qs)
-    $result = @(); [xget]::Options = New-Object xObOptions -Property @{
+    $result = @(); [PsmoduleBase]::Options = New-Object xObOptions -Property @{
       PropstoExclude = $PropstoExclude
       PropstoInclude = $PropstoInclude
       SkipDefaults   = $SkipDefaults
@@ -1733,7 +1493,7 @@ class xconvert : System.ComponentModel.TypeConverter {
       Values         = $Values
     }
     foreach ($i in $obj) {
-      $result += [xget]::RecurseObject($i, [PSObject]::new())
+      $result += [PsmoduleBase]::RecurseObject($i, [PSObject]::new())
     }
     return $result
   }
@@ -1817,11 +1577,11 @@ class xconvert : System.ComponentModel.TypeConverter {
 
   static [byte[]] ToBytes([string]$string) {
     $array = switch ($true) {
-      $([xget]::IsValidBase64($string)) {
+      $([PsmoduleBase]::IsValidBase64($string)) {
         [convert]::FromBase64String($string);
         break
       }
-      $([xget]::IsValidHex($string)) {
+      $([PsmoduleBase]::IsValidHex($string)) {
         $outputLength = $string.Length / 2;
         $output = [byte[]]::new($outputLength);
         $numeral = [char[]]::new(2);
@@ -2019,7 +1779,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     return [xconvert]::ToObject($File.FullName, $Type, $false);
   }
   static hidden [object] ToObject([IO.FileInfo]$File, [bool]$Decrypt) {
-    $FilePath = [xget]::ResolvedPath($File.FullName); $Object = $null
+    $FilePath = [PsmoduleBase]::ResolvedPath($File.FullName); $Object = $null
     try {
       if ($Decrypt) { $(Get-Item $FilePath).Decrypt() }
       $Object = Import-Clixml -Path $FilePath
@@ -2029,7 +1789,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     return $Object
   }
   static hidden [object] ToObject([IO.FileInfo]$File, [string]$Type, [bool]$Decrypt) {
-    $FilePath = [xget]::ResolvedPath($File.FullName); $Object = $null
+    $FilePath = [PsmoduleBase]::ResolvedPath($File.FullName); $Object = $null
     try {
       if ($Decrypt) { $(Get-Item $FilePath).Decrypt() }
       $Object = (Import-Clixml -Path $FilePath) -as "$Type"
@@ -2044,9 +1804,9 @@ class xconvert : System.ComponentModel.TypeConverter {
   static hidden [IO.FileInfo] FromObject($Object, [string]$OutFile, [bool]$encrypt) {
     $OutFile = $null
     try {
-      $OutFile = [xget]::UnResolvedPath($OutFile)
+      $OutFile = [PsmoduleBase]::UnResolvedPath($OutFile)
       try {
-        $resolved = [xget]::ResolvedPath($OutFile);
+        $resolved = [PsmoduleBase]::ResolvedPath($OutFile);
         if ($?) { $OutFile = $resolved }
       } catch [ItemNotFoundException] {
         New-Item -Path $OutFile -ItemType File | Out-Null
@@ -2279,7 +2039,7 @@ $typestoExport = @(
   [Base36],
   [Base32],
   [Base16],
-  [xget]
+  [PsmoduleBase]
 )
 $TypeAcceleratorsClass = [PsObject].Assembly.GetType('System.Management.Automation.TypeAccelerators')
 foreach ($Type in $typestoExport) {
