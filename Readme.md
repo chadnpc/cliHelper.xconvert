@@ -164,16 +164,16 @@ fully done.
   - [x] UTF32str
   - [x] UTF7str
   - [x] UTF8str
-  - [ ] JSON-CSV
+  - [x] JSON-CSV
   - [ ] JSON-XML
   - [ ] JSON-Log
-  - [ ] Markdown-HTML
+  - [x] Markdown-HTML
   - [ ] Powershell-Batch
   - [ ] Word-Pdf (why not)
   - [ ] Hex-RGB
   - [ ] Bitmaps
   - [x] Roman-Numbers
-  - [ ] SID
+  - [X] GUID
   - [x] Url-encoding
   - [ ] DecimalIPv4
   - [ ] functions convert data type to another (string, integer, datetime ...)
