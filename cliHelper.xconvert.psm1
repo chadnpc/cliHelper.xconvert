@@ -1545,6 +1545,25 @@ class xconvert : System.ComponentModel.TypeConverter {
     }
     return $ht
   }
+  static [System.Data.DataTable] ToDataTable($object) {
+    $data = [System.Collections.Generic.List[object]]::New()
+    $Table = [System.Data.DataTable]::New("PsData"); $data.Add($object)
+    foreach ($item in $data[0].PsObject.Properties) {
+      $tn = $item.TypeNameOfValue
+      $tn = $tn.Contains("+") ? $tn.Substring(0, $tn.IndexOf("+")) : $tn
+      [void]$table.Columns.Add($item.Name, $tn)
+    }
+    for ($i = 0; $i -lt $Data.count; $i++) {
+      $row = $table.NewRow()
+      foreach ($item in $Data[$i].PsObject.Properties) {
+        $row.Item($item.name) = $item.Value
+      }
+      [void]$table.Rows.Add($row)
+    }
+    #This is a trick to return the table object
+    #as the output and not the rows
+    return , $table
+  }
   static [string] ToHexString([byte[]]$Bytes) {
     return [string][System.BitConverter]::ToString($bytes).replace('-', [string]::Empty).Tolower();
   }
