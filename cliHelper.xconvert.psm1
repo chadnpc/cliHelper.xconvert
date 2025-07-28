@@ -122,9 +122,9 @@ class Base85 : EncodingBase {
       [System.UInt16]$LineLen = 2
     }
     $EncodedString = [string]::Empty
-    Try {
+    try {
       # Write-Debug "[base85] Encoding started at $([Datetime]::Now.Add($timer.Elapsed).ToString()) ..."
-      While ([System.Byte[]]$BytesRead = $BinaryReader.ReadBytes(4)) {
+      while ([System.Byte[]]$BytesRead = $BinaryReader.ReadBytes(4)) {
         [System.UInt16]$ByteLength = $BytesRead.Length
         if ($ByteLength -lt 4) {
           [System.Byte[]]$WorkingBytes = , 0x00 * 4
@@ -138,7 +138,7 @@ class Base85 : EncodingBase {
         [System.Char[]]$A85Chars = , 0x00 * 5
         [System.UInt32]$Sum = [BitConverter]::ToUInt32($BytesRead, 0)
         [System.UInt16]$ByteLen = [Math]::Ceiling(($ByteLength / 4) * 5)
-        if ($ByteLength -eq 4 -And $Sum -eq 0) {
+        if ($ByteLength -eq 4 -and $Sum -eq 0) {
           [System.Char[]]$A85Chunk = "z"
         } else {
           [System.Char[]]$A85Chunk = , 0x00 * $ByteLen
@@ -149,7 +149,7 @@ class Base85 : EncodingBase {
           $A85Chars[4] = [Base85]::GetChars([Math]::Floor($Sum % 85) + 33)[0]
           [System.Array]::Copy($A85Chars, $A85Chunk, $ByteLen)
         }
-        forEach ($A85Char in $A85Chunk) {
+        foreach ($A85Char in $A85Chunk) {
           [void]$Ascii85Output.Append($A85Char)
           if (!$Format) {
             if ($LineLen -eq 64) {
@@ -188,16 +188,16 @@ class Base85 : EncodingBase {
       $text = $text.Replace("<~", "").Replace("~>", "")
     }
     if ($text -match $([Base85]::NON_A85_Pattern)) {
-      Throw "Invalid Ascii85 data detected in input stream."
+      throw "Invalid Ascii85 data detected in input stream."
     }
     [System.Object]$InputStream = New-Object -TypeName System.IO.MemoryStream([Base85]::GetBytes($text), 0, $text.Length)
     [System.Object]$BinaryReader = New-Object -TypeName System.IO.BinaryReader($InputStream)
     [System.Object]$OutputStream = New-Object -TypeName System.IO.MemoryStream
     [System.Object]$BinaryWriter = New-Object -TypeName System.IO.BinaryWriter($OutputStream)
     # [System.Object]$Timer = [System.Diagnostics.Stopwatch]::StartNew()
-    Try {
+    try {
       # Write-Verbose "[base85] Decoding started at $([Datetime]::Now.Add($timer.Elapsed).ToString()) ..."
-      While ([System.Byte[]]$BytesRead = $BinaryReader.ReadBytes(5)) {
+      while ([System.Byte[]]$BytesRead = $BinaryReader.ReadBytes(5)) {
         [System.UInt16]$ByteLength = $BytesRead.Length
         if ($ByteLength -lt 5) {
           [System.Byte[]]$WorkingBytes = , 0x75 * 5
@@ -212,7 +212,7 @@ class Base85 : EncodingBase {
           [bool]$IsAtEnd = ($BinaryReader.BaseStream.Length -eq $BinaryReader.BaseStream.Position)
           if (!$IsAtEnd) {
             $BinaryReader.BaseStream.Position = $BinaryReader.BaseStream.Position - 4
-            Continue
+            continue
           }
         } else {
           [System.UInt32]$Sum = 0
@@ -303,8 +303,8 @@ class Base32 : EncodingBase {
     $BinaryReader = [BinaryReader]::new($Stream); $B32CHARSET = [Base32]::charset
     $Base32Output = [StringBuilder]::new(); $result = [string]::Empty
     # Write-Debug "[Base32] Encoding started at $([Datetime]::Now.Add($timer.Elapsed).ToString()) ..."
-    Try {
-      While ([byte[]]$BytesRead = $BinaryReader.ReadBytes(5)) {
+    try {
+      while ([byte[]]$BytesRead = $BinaryReader.ReadBytes(5)) {
         [System.Boolean]$AtEnd = ($BinaryReader.BaseStream.Length -eq $BinaryReader.BaseStream.Position)
         [System.UInt16]$ByteLength = $BytesRead.Length
         if ($ByteLength -lt 5) {
@@ -334,7 +334,7 @@ class Base32 : EncodingBase {
       [string]$result = $Base32Output.ToString()
     } catch {
       Write-Error "Exception: $($_.Exception.Message)"
-      Break
+      break
     } finally {
       $BinaryReader.Close()
       $BinaryReader.Dispose()
@@ -349,17 +349,17 @@ class Base32 : EncodingBase {
     $string = $string.ToLower(); $B32CHARSET = [Base32]::charset
     $B32CHARSET_Pattern = "^[A-Z2-7 ]+_*$"; [byte[]]$result = $null
     if (!($string -match $B32CHARSET_Pattern)) {
-      Throw "Invalid Base32 data encountered in input stream."
+      throw "Invalid Base32 data encountered in input stream."
     }
     # Write-Verbose "[Base32] Decoding started at $([Datetime]::Now.Add($timer.Elapsed).ToString()) ..."
     $InputStream = [MemoryStream]::new([Encoding]::UTF8.GetBytes($string), 0, $string.Length)
     $BinaryReader = [BinaryReader]::new($InputStream)
     $OutputStream = [MemoryStream]::new()
     $BinaryWriter = [BinaryWriter]::new($OutputStream)
-    Try {
-      While ([System.Char[]]$CharsRead = $BinaryReader.ReadChars(8)) {
+    try {
+      while ([System.Char[]]$CharsRead = $BinaryReader.ReadChars(8)) {
         [System.Byte[]]$B32Bytes = , 0x00 * 5
-        [System.UInt16]$CharLen = 8 - ($CharsRead -Match "_").Count
+        [System.UInt16]$CharLen = 8 - ($CharsRead -match "_").Count
         [System.UInt16]$ByteLen = [Math]::Floor(($CharLen * 5) / 8)
         [System.Byte[]]$BinChunk = , 0x00 * $ByteLen
         if ($CharLen -lt 8) {
@@ -379,7 +379,7 @@ class Base32 : EncodingBase {
       $result = $OutputStream.ToArray()
     } catch {
       Write-Error "Exception: $($_.Exception.Message)"
-      Break
+      break
     } finally {
       $BinaryReader.Close()
       $BinaryReader.Dispose()
@@ -683,7 +683,7 @@ class EncodKit {
         'Base36' {}
         'Base32' {}
         'Base16' {}
-        Default {
+        default {
           [Base85]::Encode($ba)
         }
       }
@@ -714,7 +714,7 @@ class EncodKit {
           'Base58' { [Base58]::Decode($encodedString) }
           'Base32' {}
           'Base16' {}
-          Default {
+          default {
             [Base85]::Decode($encodedString)
           }
         }
@@ -845,7 +845,7 @@ class xconvert : System.ComponentModel.TypeConverter {
         [string][xconvert]::ToCompressed([System.Convert]::ToBase64String([xconvert]::ToBytes($CustomObject)));
         break
       }
-      Default {
+      default {
         $sb = [StringBuilder]::New(); [void]$sb.AppendLine('@{');
         foreach ($key in $Object.Keys) {
           if ($Object[$key]) {
@@ -872,14 +872,14 @@ class xconvert : System.ComponentModel.TypeConverter {
                 break
               }
               $($keytN -in ('Hashtable', 'OrderedDictionary', 'PSBoundParametersDictionary')) {
-                [string]$itemText = "{0} = {1}" -f "$key", $(ConvertTo-String -InputObject $Object[$key] -DoNotFormat)
+                [string]$itemText = "{0} = {1}" -f "$key", [xconvert]::ToString($Object[$key])
                 [void]$sb.AppendLine($itemText)
                 break
               }
               $($keytN -in ('Hashtable[]', 'OrderedDictionary[]', 'PSBoundParametersDictionary[]')) {
                 $NewLineStr = [Environment]::NewLine
                 $JoinSeparator = ",$NewLineStr"
-                [string]$itemText = "{0} = @($NewLineStr{1}$NewLineStr)" -f "$key", "$($($Object[$key] | ForEach-Object { ConvertTo-String -InputObject $_ -DoNotFormat }) -join $JoinSeparator)"
+                [string]$itemText = "{0} = @($NewLineStr{1}$NewLineStr)" -f "$key", "$($($Object[$key] | ForEach-Object { [xconvert]::ToString($_) }) -join $JoinSeparator)"
                 [void]$sb.AppendLine($itemText)
                 break
               }
@@ -891,7 +891,7 @@ class xconvert : System.ComponentModel.TypeConverter {
               $($keytN -eq 'PSCustomObject') {
                 # Convert to hashtable
                 $propHash = @{}; foreach ($prop in $Object[$key].PSObject.Properties) { $propHash[$prop.Name] = $prop.Value }
-                [string]$itemText = '{0} = $([PSCustomObject] {1})' -f "$key", $(ConvertTo-String -InputObject $propHash -DoNotFormat)
+                [string]$itemText = '{0} = $([PSCustomObject] {1})' -f "$key", [xconvert]::ToString($propHash)
                 [void]$sb.AppendLine($itemText)
                 break
               }
@@ -900,7 +900,7 @@ class xconvert : System.ComponentModel.TypeConverter {
                 [void]$sb.AppendLine($itemText)
                 break
               }
-              Default {
+              default {
                 Write-Warning "Serializing not supported key: $key that contains: $_"
                 [string]$itemText = '{0} = {1}' -f "$key", $($Object[$key].ToString())
                 [void]$sb.AppendLine($itemText)
@@ -929,7 +929,7 @@ class xconvert : System.ComponentModel.TypeConverter {
       26 { @('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p') }
       # Sexagesimal
       60 { @('0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x') }
-      Default {
+      default {
         throw [System.ArgumentException]::new("Invalid Base.")
       }
     }
@@ -1028,7 +1028,7 @@ class xconvert : System.ComponentModel.TypeConverter {
     $SecureString = $null; Set-Variable -Name SecureString -Scope Local -Visibility Private -Option Private -Value ([System.Security.SecureString]::new());
     if (![string]::IsNullOrEmpty($String)) {
       $Chars = $String.toCharArray()
-      ForEach ($Char in $Chars) {
+      foreach ($Char in $Chars) {
         $SecureString.AppendChar($Char)
       }
     }
@@ -1060,7 +1060,7 @@ class xconvert : System.ComponentModel.TypeConverter {
       "yeah*" { "true"; break }
       "y*" { "true"; break }
       "n*" { "false"; break }
-      Default { "false" }
+      default { "false" }
     }
     return [convert]::ToBoolean($Text)
   }
@@ -1281,7 +1281,7 @@ class xconvert : System.ComponentModel.TypeConverter {
   static [string] MarkdowntoHTML ([IO.FileInfo]$file) {
     return [String]::Join("`n", [IO.File]::ReadAllLines($file.FullName).ForEach({ ![String]::IsNullOrWhiteSpace($_) ? [xconvert]::MarkdowntoHTML($_) : $null }))
   }
-  Static [PSCustomObject] ToPSObject([System.Object]$Obj) {
+  static [PSCustomObject] ToPSObject([System.Object]$Obj) {
     $PSObj = [PSCustomObject]::new();
     $Obj | Get-Member -MemberType Properties | ForEach-Object {
       $Name = $_.Name; $PSObj | Add-Member -Name $Name -MemberType NoteProperty -Value $(if ($null -ne $Obj.$Name) { if ("Deserialized" -in (($Obj.$Name | Get-Member).TypeName.Split('.') | Sort-Object -Unique)) { $([xconvert]::ToPSObject($Obj.$Name)) } else { $Obj.$Name } } else { $null })
@@ -1439,14 +1439,14 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static hidden [byte[]] ToCompressed([byte[]]$Bytes, [string]$Compression) {
     if (("$Compression" -as 'Compression') -isnot 'Compression') {
-      Throw [System.InvalidCastException]::new("Compression type '$Compression' is unknown! Valid values: $([Enum]::GetNames([compression]) -join ', ')");
+      throw [System.InvalidCastException]::new("Compression type '$Compression' is unknown! Valid values: $([Enum]::GetNames([compression]) -join ', ')");
     }
     $outstream = [MemoryStream]::new()
     $Comstream = switch ($Compression) {
       "Gzip" { New-Object System.IO.Compression.GzipStream($outstream, [Compression.CompressionLevel]::Optimal) }
       "Deflate" { New-Object System.IO.Compression.DeflateStream($outstream, [Compression.CompressionLevel]::Optimal) }
       "ZLib" { New-Object System.IO.Compression.ZLibStream($outstream, [Compression.CompressionLevel]::Optimal) }
-      Default { throw "Failed to Compress Bytes. Could Not resolve Compression!" }
+      default { throw "Failed to Compress Bytes. Could Not resolve Compression!" }
     }
     [void]$Comstream.Write($Bytes, 0, $Bytes.Length); $Comstream.Close(); $Comstream.Dispose();
     [byte[]]$OutPut = $outstream.ToArray(); $outStream.Close()
@@ -1460,14 +1460,14 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static hidden [byte[]] FromCompressed([byte[]]$Bytes, [string]$Compression) {
     if (("$Compression" -as 'Compression') -isnot 'Compression') {
-      Throw [System.InvalidCastException]::new("Compression type '$Compression' is unknown! Valid values: $([Enum]::GetNames([compression]) -join ', ')");
+      throw [System.InvalidCastException]::new("Compression type '$Compression' is unknown! Valid values: $([Enum]::GetNames([compression]) -join ', ')");
     }
     $inpStream = [MemoryStream]::new($Bytes)
     $ComStream = switch ($Compression) {
       "Gzip" { New-Object System.IO.Compression.GzipStream($inpStream, [Compression.CompressionMode]::Decompress); }
       "Deflate" { New-Object System.IO.Compression.DeflateStream($inpStream, [Compression.CompressionMode]::Decompress); }
       "ZLib" { New-Object System.IO.Compression.ZLibStream($inpStream, [Compression.CompressionMode]::Decompress); }
-      Default { throw "Failed to DeCompress Bytes. Could Not resolve Compression!" }
+      default { throw "Failed to DeCompress Bytes. Could Not resolve Compression!" }
     }
     $outStream = [MemoryStream]::new();
     [void]$Comstream.CopyTo($outStream); $Comstream.Close(); $Comstream.Dispose(); $inpStream.Close()
@@ -1611,7 +1611,7 @@ class xconvert : System.ComponentModel.TypeConverter {
         $output;
         break
       }
-      Default {
+      default {
         [encoding]::Default.GetBytes($string);
       }
     }
@@ -1638,7 +1638,7 @@ class xconvert : System.ComponentModel.TypeConverter {
         [xconvert]::FromBitArray([xconvert]::ToBitArrayString($obj));
         break
       }
-      Default {
+      default {
         $str = $(try {
             if ($type -ne [string]) {
               [xconvert]::ToString($obj)
@@ -1752,7 +1752,7 @@ class xconvert : System.ComponentModel.TypeConverter {
   }
   static hidden [string] ToBitArrayString([string]$string, [bool]$Tidy) {
     [string]$BinStR = [string]::Empty;
-    foreach ($ch In $string.ToCharArray()) {
+    foreach ($ch in $string.ToCharArray()) {
       $BinStR += [Convert]::ToString([int]$ch, 2).PadLeft(8, '0');
     }
     return [xconvert]::ToBitArrayString([xconvert]::FromBitArray($BinStR), $Tidy)
@@ -1760,7 +1760,7 @@ class xconvert : System.ComponentModel.TypeConverter {
   static [byte[]] FromBitArray([string]$binary) {
     $binary = [string]::Join('', $binary.Split())
     $length = $binary.Length; if ($length % 8 -ne 0) {
-      Throw [InvalidDataException]::new("Your string is invalid. Make sure it has no typos.")
+      throw [InvalidDataException]::new("Your string is invalid. Make sure it has no typos.")
     }
     $list = [Generic.List[Byte]]::new()
     for ($i = 0; $i -lt $length; $i += 8) {
@@ -1772,7 +1772,7 @@ class xconvert : System.ComponentModel.TypeConverter {
   static [Object[]] ToOrdered($InputObject) {
     $obj = $InputObject
     $convert = [scriptBlock]::Create({
-        Param($obj)
+        param($obj)
         if ($obj -is [PSCustomObject]) {
           # a custom object: recurse on its properties
           $oht = [ordered]@{}
@@ -1966,7 +1966,7 @@ class xconvert : System.ComponentModel.TypeConverter {
           (Get-Date -Date 1/1/1900 ) + [timespan]::FromDays($DS)
           break
         }
-        Default {
+        default {
           $r = $DS -as [DateTime]
           if ($r -is [DateTime]) { $r } else {
             # Dynamically detect the system's date and time format and use it to parse the $dateString.
@@ -2092,10 +2092,10 @@ $scripts += Get-ChildItem "$PSScriptRoot/Private/" -Filter "*.ps1" -Recurse -Err
 $scripts += $Public
 
 foreach ($file in $scripts) {
-  Try {
+  try {
     if ([string]::IsNullOrWhiteSpace($file.fullname)) { continue }
     . "$($file.fullname)"
-  } Catch {
+  } catch {
     Write-Warning "Failed to import function $($file.BaseName): $_"
     $host.UI.WriteErrorLine($_)
   }
