@@ -1,13 +1,32 @@
 ﻿@{
   ModuleName    = 'cliHelper.xconvert'
-  ModuleVersion = [version]'0.1.8'
+  ModuleVersion = [version]'0.1.9'
   ReleaseNotes  = @"
 # Changelog`n`n
 
+## v0.1.9 - Complete Method Pairs & SID Support
+
+### ✅ New Features
+- **Complete From/To Method Pairs**: Added all missing 'From' methods to complement existing 'To' methods
+  - FromReverse, FromSecurestring, FromGuid, FromBoolean, FromChars
+  - FromBitArrayString, FromSerialized, FromHashTable, FromDataTable
+  - FromDateTime, FromOrdered, FromPSCustomObject, FromFlatObject, FromString
+- **SID Conversion Support**: New ToSID and FromSID methods for Windows Security Identifier conversion
+  - Support for 75+ well-known SIDs (Everyone, Administrators, Users, etc.)
+  - Automatic translation between account names and SIDs
+  - Proper error handling for invalid SIDs/accounts
+
+### 🔧 Improvements
+- Enhanced type safety and validation across all methods
+- Better error messages with detailed context
+- Consistent method signatures following established patterns
+
+### 📋 Previous Changes (v0.1.8)
 - Argument completer makes sense now :)
 - Easy method chaining and Pipeline stuff
 - Added argument completion for method names
 - Fixed base85
+- Added SID class for well-known SIDs
 
 `n`n***`n`n## Manual install guide`n`n
 1. [Click here](https://github.com/chadnpc/cliHelper.xconvert/releases/download/v<versionToDeploy>/cliHelper.xconvert.zip) to download the *PsImport.zip* file attached to the release.

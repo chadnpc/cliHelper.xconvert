@@ -2,7 +2,7 @@
 using namespace System.IO
 using namespace System.Management.Automation
 #.SYNOPSIS
-#   cliHelper.xconvert buildScript v0.1.8
+#   cliHelper.xconvert buildScript v0.1.9
 #.DESCRIPTION
 #   A custom Psake buildScript for the module cliHelper.xconvert.
 #.EXAMPLE
@@ -74,5 +74,11 @@ begin {
   }
 }
 process {
+  $shouldInstalldotnet = $( if (!(Get-Command dotnet -CommandType Application -ErrorAction Ignore)) { $true } elseif ([string]::IsNullOrWhiteSpace((dotnet --list-sdks)) -or !((dotnet --list-sdks) -match '9\.\d+\.\d+')) { $true } else { $false } )
+  if ($shouldInstalldotnet) {
+    if ($IsWindows) {
+      winget install --id=Microsoft.DotNet.SDK.9 -e
+    }
+  }
   Build-Module -Task $Task -Path $Path -Import:$Import
 }
